@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <title>ร้านอมเรศ ท่าพระจันทร์ | ระบบจัดการใบสั่งจอง</title>
+  
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet"/>
+  
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Prompt', 'sans-serif'] },
+          animation: { 'fade-in': 'fadeIn 0.3s ease-out', 'slide-up': 'slideUp 0.4s ease-out' },
+          keyframes: {
+            fadeIn: { '0%':{opacity:0}, '100%':{opacity:1} },
+            slideUp: { '0%':{opacity:0,transform:'translateY(12px)'}, '100%':{opacity:1,transform:'translateY(0)'} }
+          }
+        }
+      }
+    }
+  </script>
+  
+  <script crossorigin="anonymous" src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin="anonymous" src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <style>
+    * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
+    body { overscroll-behavior: none; margin: 0; padding: 0; }
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .animate-enter { animation: fadeIn 0.25s ease-out, slideUp 0.3s ease-out; }
+    @keyframes badgePulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.85;transform:scale(1.05)} }
+    .badge-new { animation: badgePulse 1.5s ease-in-out infinite; }
+    .skeleton { background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 50%, #f1f5f9 75%); background-size: 200% 100%; animation: skeleton 1.5s infinite; border-radius: 0.5rem; }
+    @keyframes skeleton { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .hover-lift { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+    .hover-lift:hover { transform: translateY(-2px); box-shadow: 0 8px 25px rgba(0,0,0,0.1); }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 antialiased font-sans overflow-hidden">
+  <div id="root"></div>
+  
+  <script type="text/babel">
+    const { useState, useMemo, useEffect, useCallback, useRef } = React;
+
+    const WEBHOOK_POST_URLS = {
+      moh: 'https://n8n.srv1038568.hstgr.cloud/webhook/a62e235f-0bfa-4637-a206-900c12cd018b',
+      form: 'https://n8n.srv1038568.hstgr.cloud/webhook/a62e235f-0bfa-4637-a206-900c12cd018b'
+    };
+
+    const WEBHOOK_GET_URLS = {
+      moh: 'https://n8n.srv1038568.hstgr.cloud/webhook/moh', 
+      form: 'https://n8n.srv1038568.hstgr.cloud/webhook/a62e235f-0bfa-4637-a206-900c12cd018b' 
+    };
+
+    const CAMPUS_OPTIONS = ['หาดใหญ่', 'ปัตตานี', 'สุราษฎร์', 'ตรัง', 'ภูเก็ต'];
+    const FACULTY_BY_CAMPUS = {
+      'หาดใหญ่': ['วิทยาการจัดการ - ม่วงมะปราง', 'วิทยาศาสตร์ – เหลืองจันทร์', 'วิศวะ - เลือดหมู', 'ศิลปศาสตร์ - แดงอมส้ม', 'เศรษฐศาสตร์ - หมากสุก', 'วิทยาลัยนานาชาติ - น้ำเงินคาดเทา', 'ทรัพยากร - เขียวตอง', 'ทันตแพทย์ - ม่วงเข้ม', 'เทคนิคการแพทย์ - เลือดหมูคาดริบบิ้นทอง', 'นิติศาสตร์ - ขาวคาดดำ', 'แพทย์ - เขียวหัวเป็ด', 'แพทย์ สาขารังสี - เขียวหัวเป็ด', 'แพทย์ สาขากายภาพบำบัด - เขียวหัวเป็ด', 'เภสัช - เขียวมะกอก', 'พยาบาล - ต่วนแสดสะท้อนแสง', 'แพทย์แผนไทย - เหลืองบุนนาค', 'สัตวแพทย์ - ฟ้าหม่น', 'อุตสาหกรรม - ชมพู', 'บัณฑิตวิทยาลัย - น้ำเงิน', 'การจัดการสิ่งแวดล้อม – เขียวบางจาก'],
+      'ปัตตานี': ['มนุษยศาสตร์ - ขาว', 'วิทยาลัยอิสลาม - เทา', 'รัฐศาสตร์ - ดำ', 'สื่อสาร - เงิน', 'ศึกษาศาสตร์ - แสด', 'วิทย์ - เทคโนโลยี - แดงเลือดนก', 'ศิลปกรรม - เหลืองดิน', 'พยาบาล - ต่วนแสดสะท้อนแสง', 'บัณฑิตวิทยาลัย - น้ำเงิน'],
+      'สุราษฎร์': ['วิทย์เทคโน - ม่วงมังคุด', 'ศิลปศาสตร์ - การจัดการ - แดงอมส้มคาดเหลือง', 'วิทยาลัยนานาชาติ - น้ำเงินคาดเทา', 'ประมง - ส้มไฟ'],
+      'ตรัง': ['พาณิชยศาสตร์ - ฟ้า', 'สถาปัตยกรรม - น้ำตาล'],
+      'ภูเก็ต': ['วิเทศศึกษา - เปลือกไข่', 'วิศวะ - เลือดหมู YRC', 'วิทยาการคอมพิวเตอร์ - แดงคาดฟ้า', 'ท่องเที่ยว - บานเย็น', 'สิ่งแวดล้อม - ม่วงมะเขือ']
+    };
+
+    const PACKAGE_OPTIONS = {
+      'ตรี': ['ตัดซื้อครุย รับชุดที่มหาวิทยาลัย โอน 2700 บาท', 'ตัดซื้อครุย + ถุงคลุม รับชุดที่มหาวิทยาลัย โอน 2800 บาท', 'ตัดซื้อครุย + ส่ง ems โอน 2880 บาท', 'ตัดซื้อครุย + ถุงคลุม + ส่ง ems โอน 2980 บาท', 'ตัดเช่าครุย รับชุดที่มหาวิทยาลัย โอน 1200 บาท (วันรับชุดจ่ายค่าประกัน 1,500)', 'เช่าครุย รับชุดที่มหาวิทยาลัย โอน 520 บาท (วันรับชุดจ่ายค่าประกัน 1,500 บาท)'],
+      'โท': ['ตัดซื้อครุย รับชุดที่มหาวิทยาลัย โอน 2800 บาท', 'ตัดซื้อครุย + ถุงคลุม รับชุดที่มหาวิทยาลัย โอน 2900 บาท', 'ตัดซื้อครุย + ส่ง ems โอน 2980 บาท', 'ตัดซื้อครุย + ถุงคลุม + ส่ง ems โอน 3080 บาท', 'ตัดเช่าครุย รับชุดที่มหาวิทยาลัย โอน 1300 บาท (วันรับชุดจ่ายค่าประกัน 1,500)', 'เช่าครุย รับชุดที่มหาวิทยาลัย โอน 570 บาท (วันรับชุดจ่ายค่าประกัน 1,500 บาท)'],
+      'เอก': ['ตัดซื้อครุย + ถุงคลุม รับชุดที่มหาวิทยาลัย โอน 9500 บาท', 'ตัดซื้อครุย + ถุงคลุม + ส่ง ems โอน 9750 บาท']
+    };
+
+    const INNER_SUIT_SUB_OPTIONS = {
+      'เสื้อราชปะแตนพร้อมเครื่องหมาย': ['ตัดซื้อเสื้อราชพร้อมเครื่องหมาย โอน 2000 บาท', 'ตัดเช่าเสื้อราชพร้อมเครื่องหมาย โอน 1200 รับชุดที่วิทยาเขต (วันรับชุดจ่ายค่าประกัน 1000)', 'เช่าเสื้อราชพร้อมเครื่องหมาย โอน 520 บาท รับชุดที่วิทยาเขต (วันรับชุดจ่ายค่าประกัน 1000)'],
+      'ชุดว่าที่ร้อยตรี': ['ตัดซื้อชุดว่าที่ร้อยตรี = 2700 บาท (เสื้อขาวว่าที่ร้อยตรี + กางเกง *ไม่รวมเครื่องหมาย)', 'ซื้อเซ็ทเครื่องหมายว่าที่ร้อยตรี (อินทนู, นก, ราบ, กระดุม, แถบเครื่องราชฯ) โอน 1000 บาท', 'สั่งทำป้ายชื่อ = 250 บาท', 'ซื้อเซ็ทกระบี่ มี 4 อย่าง (กระบี่, ถุงมือ, พู่, ชายตรง) = 6500 บาท'],
+      'ชุดข้าราชการ': ['ตัดซื้อชุดข้าราชการ โอน 2500 บาท (ไม่รวมเครื่องหมาย)', 'เช่าชุดข้าราชการ โอน 800 บาท (ไม่รวมเครื่องหมาย) รับชุดที่วิทยาเขต วันรับชุดจ่ายค่าประกัน 1500 บาท']
+    };
+
+    const THAI_MAP = {
+      'Timestamp': 'ประทับเวลา',
+      'Booking_Order_Number': 'เลขที่ใบสั่งจอง',
+      'Booking_Date': 'วันที่สั่งจอง',
+      'Title': 'คำนำหน้า',
+      'First_Name': 'ชื่อ',
+      'Last_Name': 'นามสกุล',
+      'Phone_Number': 'เบอร์มือถือ',
+      'Email': 'อีเมล',
+      'Institution': 'สถาบัน',
+      'Faculty': 'คณะ',
+      'Major': 'สาขา',
+      'Faculty_Color': 'สีประจำคณะ',
+      'Address_House_No': 'ที่อยู่ เลขที่',
+      'Address_Village': 'ที่อยู่ หมู่บ้าน',
+      'Address_Moo': 'ที่อยู่ หมู่',
+      'Address_Soi': 'ที่อยู่ ซอย',
+      'Address_Street': 'ที่อยู่ ถนน',
+      'Address_Sub_District': 'ที่อยู่ ตำบล/แขวง',
+      'Address_District': 'ที่อยู่ อำเภอ/เขต',
+      'Address_Province': 'ที่อยู่ จังหวัด',
+      'Postal_Code': 'รหัสไปรษณีย์',
+      'Weight_kg': 'น้ำหนัก (กก.)',
+      'Height_cm': 'ส่วนสูง (ซม.)',
+      'Gown_Service_Type': 'ชุดครุย ประเภทบริการ', 
+      'Order_Degree_Gown': 'ระดับปริญญา',
+      'Order_Garment_Bag': 'สั่ง ถุงคลุม',
+      'Order_RajPattern_Suit': 'สั่ง ชุดราชปะแตน',
+      'Order_Insignia': 'สั่ง เครื่องหมาย',
+      'Order_Navy_Blue_Suit': 'สั่ง ชุดสูทสีกรมท่า',
+      'Order_White_Suit': 'สั่ง ชุดสูทสีขาว',
+      'Order_Student_Uniform': 'สั่ง ชุดนักศึกษา',
+      'RajPattern_Suit_Service_Type': 'ราชปะแตน/สูท ประเภทบริการ',
+      'Gown_Shoulder_Width_inch': 'ไหล่กว้าง ชุดครุย',
+      'Gown_Sleeve_Length_inch': 'แขนยาว ชุดครุย',
+      'Gown_Length_inch': 'เสื้อยาว ชุดครุย',
+      'Gown_Chest_inch': 'รอบอก ชุดครุย',
+      'Gown_Head_Circumference_inch': 'รอบศีรษะ ชุดครุย',
+      'RajPattern_Shoulder_Width_inch': 'ไหล่กว้าง เสื้อราชปะแตน',
+      'RajPattern_Neck_Circumference_inch': 'รอบคอ เสื้อราชปะแตน',
+      'RajPattern_Front_Shoulder_inch': 'บ่าหน้า เสื้อราชปะแตน',
+      'RajPattern_Back_Shoulder_inch': 'บ่าหลัง เสื้อราชปะแตน',
+      'RajPattern_Chest_inch': 'รอบอก เสื้อราชปะแตน',
+      'RajPattern_Sleeve_Length_inch': 'แขนยาว เสื้อราชปะแตน',
+      'RajPattern_Shirt_Length_inch': 'เสื้อยาว เสื้อราชปะแตน',
+      'RajPattern_Upper_Hip_inch': 'สะโพกบน เสื้อราชปะแตน',
+      'RajPattern_Waist_inch': 'รอบเอว เสื้อราชปะแตน',
+      'RajPattern_Lower_Hip_inch': 'สะโพกล่าง เสื้อราชปะแตน',
+      'RajPattern_Belly_Circumference_inch': 'รอบพุง เสื้อราชปะแตน',
+      'RajPattern_Hip_inch': 'สะโพก เสื้อราชปะแตน', 
+      'RajPattern_Crotch_inch': 'เป้า เสื้อราชปะแตน',
+      'RajPattern_Thigh_inch': 'ต้นขา เสื้อราชปะแตน',
+      'RajPattern_Pants_Skirt_Length_inch': 'กางเกงยาว เสื้อราชปะแตน',
+      'Gown_Price': 'ราคาครุย',
+      'Gown_Deposit': 'มัดจำครุย',
+      'Gown_Balance': 'คงเหลือครุย',
+      'RajPattern_Price': 'ราคาราชปะแตน',
+      'RajPattern_Deposit': 'มัดจำราชปะแตน',
+      'RajPattern_Balance': 'คงเหลือราชปะแตน',
+      'Student_ID': 'รหัสนักศึกษา',
+      'Address': 'ที่อยู่',
+      'Campus': 'วิทยาเขต',
+      'HatYai_Faculty_Color': 'วิทยาเขตหาดใหญ่ คณะ/สี',
+      'Pattani_Faculty_Color': 'วิทยาเขตปัตตานี คณะ / สี',
+      'SuratThani_Faculty_Color': 'วิทยาเขตสุราษฎร์ คณะ / สี',
+      'Trang_Faculty_Color': 'วิทยาเขตตรัง คณะ / สี',
+      'Phuket_Faculty_Color': 'วิทยาเขตภูเก็ต คณะ / สี',
+      'Order_Type': 'สั่งจอง (ครุย)',
+      'Degree_Level': 'ระดับปริญญา',
+      'Male_Inner_Suit_Choice': 'สำหรับบัณฑิตชาย เท่านั้น',
+      'Bachelor_Degree_Details': 'แพ็กเกจ (ปริญญาตรี)',
+      'Master_Degree_Details': 'แพ็กเกจ (ปริญญาโท)',
+      'Doctoral_Degree_Details': 'แพ็กเกจ (ปริญญาเอก)',
+      'Order_Inner_Suit_Male': 'สั่งจองชุดด้านใน',
+      'RajPattern_Shirt_With_Insignia': 'แพ็กเกจเสื้อราชปะแตน',
+      'Acting_Sub_Lieutenant_Suit': 'แพ็กเกจชุดว่าที่ร้อยตรี',
+      'Civil_Servant_Suit': 'แพ็กเกจชุดข้าราชการ',
+      'General_Shoulder_Width_inch': 'ไหล่กว้างทั่วไป',
+      'General_Sleeve_Length_inch': 'แขนยาวทั่วไป',
+      'General_Chest_inch': 'รอบอกทั่วไป',
+      'General_Neck_Circumference_inch': 'รอบคอทั่วไป',
+      'General_Shirt_Length_inch': 'เสื้อยาวทั่วไป',
+      'General_Waist_inch': 'รอบเอวทั่วไป',
+      'General_Hip_inch': 'สะโพกทั่วไป',
+      'Crotch_Length_inch': 'เป้า',
+      'Thigh_Circumference_inch': 'ต้นขา',
+      'Pants_Length_inch': 'กางเกงยาว',
+      'Total_Transfer_Amount': 'ยอดโอน',
+      'Transfer_Slip_URL': 'Upload สลิปโอนเงิน',
+      'Suit_Number': 'เลขที่ชุด',
+      'Total_Inner_Suits': 'รวมชุดด้านใน',
+      'Booking_Details': 'รายละเอียดสั่งจอง',
+      'PDF_URL': 'PDF URL',
+      'RowInSheet': 'เลขบรรทัด (ID)',
+      'Webapp': 'เพิ่มผ่าน Webapp'
+    };
+
+    const getStaticFieldGroups = (activeTab) => {
+      if (activeTab === 'moh') {
+        return [
+          { id: 'personal', title: 'ข้อมูลส่วนตัว', icon: 'user', fields: ['Booking_Order_Number', 'Title', 'First_Name', 'Last_Name', 'Phone_Number', 'Email', 'Institution', 'Faculty', 'Major', 'Faculty_Color', 'Weight_kg', 'Height_cm'] },
+          { id: 'address', title: 'ที่อยู่จัดส่ง', icon: 'map-pin', fields: ['Address_House_No', 'Address_Village', 'Address_Moo', 'Address_Soi', 'Address_Street', 'Address_Sub_District', 'Address_District', 'Address_Province', 'Postal_Code'] },
+          { id: 'requirements', title: 'ความต้องการ', icon: 'list', fields: ['Order_Degree_Gown', 'Gown_Service_Type', 'Order_Garment_Bag', 'Order_RajPattern_Suit', 'Order_Insignia', 'Order_Navy_Blue_Suit', 'Order_White_Suit', 'Order_Student_Uniform', 'RajPattern_Suit_Service_Type'] },
+          { id: 'gown-size', title: 'ขนาดชุดครุย', icon: 'shirt', fields: ['Gown_Shoulder_Width_inch', 'Gown_Sleeve_Length_inch', 'Gown_Length_inch', 'Gown_Chest_inch', 'Gown_Head_Circumference_inch'] },
+          { id: 'formal-size', title: 'ขนาดชุดด้านใน', icon: 'tie', fields: ['RajPattern_Shoulder_Width_inch', 'RajPattern_Neck_Circumference_inch', 'RajPattern_Front_Shoulder_inch', 'RajPattern_Back_Shoulder_inch', 'RajPattern_Chest_inch', 'RajPattern_Sleeve_Length_inch', 'RajPattern_Shirt_Length_inch', 'RajPattern_Upper_Hip_inch', 'RajPattern_Waist_inch', 'RajPattern_Lower_Hip_inch', 'RajPattern_Belly_Circumference_inch', 'RajPattern_Crotch_inch', 'RajPattern_Thigh_inch', 'RajPattern_Pants_Skirt_Length_inch'] },
+          { id: 'payment', title: 'การชำระเงิน', icon: 'credit-card', fields: ['Gown_Price', 'Gown_Deposit', 'Gown_Balance', 'RajPattern_Price', 'RajPattern_Deposit', 'RajPattern_Balance'] },
+          { id: 'system', title: 'ข้อมูลระบบ', icon: 'clock', fields: ['Timestamp', 'Booking_Date', 'RowInSheet', 'Webapp'], system: true }
+        ];
+      }
+      return [
+        { id: 'personal', title: 'ข้อมูลส่วนตัว', icon: 'user', fields: ['Suit_Number', 'Title', 'First_Name', 'Last_Name', 'Student_ID', 'Phone_Number', 'Email', 'Height_cm', 'Weight_kg'] },
+        { id: 'address', title: 'ที่อยู่จัดส่ง', icon: 'map-pin', fields: ['Address'] },
+        { id: 'campus', title: 'วิทยาเขต / คณะ', icon: 'building', fields: ['Campus', 'HatYai_Faculty_Color', 'Pattani_Faculty_Color', 'SuratThani_Faculty_Color', 'Trang_Faculty_Color', 'Phuket_Faculty_Color'] },
+        { id: 'order', title: 'การสั่งจอง', icon: 'cart', fields: ['Order_Type', 'Degree_Level', 'Male_Inner_Suit_Choice', 'Order_Inner_Suit_Male', 'RajPattern_Shirt_With_Insignia', 'Acting_Sub_Lieutenant_Suit', 'Civil_Servant_Suit'] },
+        { id: 'gown-size', title: 'ขนาดชุดครุย', icon: 'ruler', fields: ['Gown_Shoulder_Width_inch', 'Gown_Sleeve_Length_inch', 'Gown_Length_inch', 'Gown_Chest_inch', 'Gown_Head_Circumference_inch'] },
+        { id: 'formal-size', title: 'ขนาดชุดด้านใน', icon: 'ruler', fields: ['RajPattern_Shoulder_Width_inch', 'RajPattern_Sleeve_Length_inch', 'RajPattern_Chest_inch', 'RajPattern_Neck_Circumference_inch', 'RajPattern_Shirt_Length_inch', 'RajPattern_Waist_inch', 'RajPattern_Hip_inch', 'General_Shoulder_Width_inch', 'General_Sleeve_Length_inch', 'General_Chest_inch', 'General_Neck_Circumference_inch', 'General_Shirt_Length_inch', 'General_Waist_inch', 'General_Hip_inch', 'Crotch_Length_inch', 'Thigh_Circumference_inch', 'Pants_Length_inch'] },
+        { id: 'payment', title: 'การชำระเงิน', icon: 'credit-card', fields: ['Total_Transfer_Amount'] },
+        { id: 'system', title: 'ข้อมูลระบบ', icon: 'clock', fields: ['Timestamp', 'Total_Inner_Suits', 'Booking_Date', 'Booking_Details', 'PDF_URL', 'RowInSheet', 'Webapp'], system: true }
+      ];
+    };
+
+    const getCurrentTimestamp = () => {
+      const now = new Date();
+      return `${String(now.getDate()).padStart(2, '0')}/${String(now.getMonth() + 1).padStart(2, '0')}/${now.getFullYear()}, ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    };
+
+    const formatDateTime = (ts) => {
+      if (!ts || ts === 'null' || ts === 'undefined' || ts === '') return '-';
+      let str = String(ts).replace(/^\[DateTime:\s*/, '').replace(/\]$/, '').trim();
+      
+      if (str.includes('T') && str.endsWith('Z')) {
+         const d = new Date(str);
+         if (!isNaN(d.getTime())) {
+            return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+         }
+      }
+      
+      const dateMatch = str.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/);
+      const timeMatch = str.match(/(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/);
+
+      if (dateMatch) {
+         const p1 = dateMatch[1].padStart(2, '0');
+         const p2 = dateMatch[2].padStart(2, '0');
+         const yr = dateMatch[3];
+         let timeStr = '';
+         if (timeMatch) {
+            timeStr = ` ${timeMatch[1].padStart(2, '0')}:${timeMatch[2].padStart(2, '0')}`;
+         }
+         return `${p1}/${p2}/${yr}${timeStr}`;
+      }
+      
+      return str;
+    };
+
+    const isNew = (ts) => {
+      if (!ts) return false;
+      try {
+        let raw = String(ts).replace(/^\[DateTime:\s*/, '').replace(/\]$/, '').trim();
+        const now = Date.now();
+        const threshold = 48 * 60 * 60 * 1000; 
+
+        let dNative = new Date(raw);
+        if (!isNaN(dNative.getTime())) {
+            const diff = now - dNative.getTime();
+            if (diff >= -86400000 && diff < threshold) return true;
+        }
+
+        if (raw.includes('/')) {
+          const parts = raw.split(/[\s,T]+/); 
+          const datePart = parts.find(p => p.includes('/'));
+          const timePart = parts.find(p => p.includes(':')) || '00:00:00';
+          
+          if (datePart) {
+            const [p1, p2, p3] = datePart.split('/'); 
+            const d1 = new Date(`${p3}-${p2.padStart(2, '0')}-${p1.padStart(2, '0')}T${timePart}`);
+            const d2 = new Date(`${p3}-${p1.padStart(2, '0')}-${p2.padStart(2, '0')}T${timePart}`);
+            
+            const diff1 = isNaN(d1.getTime()) ? Infinity : now - d1.getTime();
+            const diff2 = isNaN(d2.getTime()) ? Infinity : now - d2.getTime();
+
+            if (diff1 >= -86400000 && diff1 < threshold) return true;
+            if (diff2 >= -86400000 && diff2 < threshold) return true;
+          }
+        }
+        return false;
+      } catch { return false; }
+    };
+
+    const cleanLabel = (key) => THAI_MAP[key] || key.replace(/_/g, ' ');
+    const isEmpty = (v) => !v || v === '' || v === '-' || v === '----' || v === 'null' || v === 'undefined';
+    
+    const getFaculty = (o) => o['Faculty'] || o['คณะ'] || o['Major'] || o['สาขา'] || '-'; 
+
+    const Badge = ({ children, variant='default', className='' }) => {
+      const variants = { default: 'bg-slate-100 text-slate-600', primary: 'bg-blue-100 text-blue-700', success: 'bg-emerald-100 text-emerald-700', warning: 'bg-amber-100 text-amber-700', danger: 'bg-red-100 text-red-700', new: 'bg-red-500 text-white badge-new' };
+      return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${variants[variant]} ${className}`}>{children}</span>;
+    };
+
+    const Icon = ({ name, className="w-4 h-4" }) => {
+      const icons = {
+        'user': <><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></>,
+        'map-pin': <><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></>,
+        'list': <><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></>,
+        'shirt': <><path d="M20.38 3.46L16 2a4 4 0 0 1-8 0L3.62 3.46a2 2 0 0 0-1.34 2.23l.58 3.47a1 1 0 0 0 .99.84H6v10c0 1.1.9 2 2 2h8a2 2 0 0 0 2-2V10h2.15a1 1 0 0 0 .99-.84l.58-3.47a2 2 0 0 0-1.34-2.23z"/></>,
+        'tie': <><path d="M14 9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v4z"/><path d="M6 21v-2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v2"/><path d="M12 11v10"/></>,
+        'clock': <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,
+        'cart': <><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></>,
+        'building': <><path d="M3 21h18"/><path d="M5 21V7l8-4v18"/><path d="M19 21V11l-6-4"/><path d="M9 9v.01"/><path d="M9 12v.01"/><path d="M9 15v.01"/><path d="M9 18v.01"/></>,
+        'ruler': <><path d="M21.8 13.561L17.3 9.06a2.1 2.1 0 0 0-2.97 0L3 20.39V21h.61L14.94 9.67a2.1 2.1 0 0 0 0-2.97L10.44 2.2"/><path d="M14.5 6.5l3 3"/><path d="M2.5 18.5l3 3"/><path d="M7 12l3 3"/><path d="M11.5 16.5l3 3"/></>,
+        'credit-card': <><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></>,
+        'check-circle': <><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></>,
+        'search': <><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></>,
+        'plus': <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>,
+        'chevron-left': <><polyline points="15 18 9 12 15 6"/></>,
+        'chevron-right': <><polyline points="9 18 15 12 9 6"/></>,
+        'x': <><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></>,
+        'refresh': <><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></>,
+        'upload': <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>,
+        'edit': <><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></>,
+        'file': <><path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><polyline points="13 2 13 9 20 9"/></>,
+        'check': <><polyline points="20 6 9 17 4 12"/></>,
+        'info': <><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></>
+      };
+      return (
+        <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{icons[name] || icons['info']}</svg>
+      );
+    };
+
+    const Skeleton = ({ className="" }) => <div className={`skeleton ${className}`}></div>;
+    
+    const Toast = ({ message, type='info', onClose }) => {
+      useEffect(() => { const t = setTimeout(onClose, 3500); return () => clearTimeout(t); }, [onClose]);
+      const styles = { info: { bg:'bg-slate-800', icon:'info' }, success: { bg:'bg-emerald-600', icon:'check' }, error: { bg:'bg-red-600', icon:'x' }, warning: { bg:'bg-amber-600', icon:'info' } };
+      return (
+        <div className="fixed bottom-4 right-4 z-50 animate-enter">
+          <div className={`${styles[type].bg} text-white px-4 py-3 rounded-xl shadow-lg flex items-center gap-3 min-w-[280px] max-w-sm`}>
+            <Icon name={styles[type].icon} className="w-5 h-5 flex-shrink-0"/>
+            <span className="text-sm font-medium flex-1">{message}</span>
+            <button onClick={onClose} className="p-1 hover:bg-white/20 rounded-lg"><Icon name="x" className="w-4 h-4"/></button>
+          </div>
+        </div>
+      );
+    };
+
+    const App = () => {
+      const [activeTab, setActiveTab] = useState('moh');
+      const [selectedOrder, setSelectedOrder] = useState(null);
+      const [searchQuery, setSearchQuery] = useState('');
+      const [filters, setFilters] = useState({ showNewOnly: false });
+      const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+      const [isLoading, setIsLoading] = useState(true);
+      const [toast, setToast] = useState(null);
+      const [mohData, setMohData] = useState([]);
+      const [formData, setFormData] = useState([]);
+      
+      const [isAdding, setIsAdding] = useState(false);
+      const [editingOrder, setEditingOrder] = useState(null);
+      
+      const searchInputRef = useRef(null);
+
+      const fetchAllData = async () => {
+        setIsLoading(true);
+        const ts = new Date().getTime(); 
+
+        const fetchJSON = async (url) => {
+          try {
+            const res = await fetch(url + `?nocache=${ts}`, { headers: { 'Accept': 'application/json' } });
+            if (!res.ok) throw new Error('Network error');
+            const json = await res.json();
+            let dataArray = Array.isArray(json) ? json : (json.data || [json]);
+            
+            return dataArray.map((item, idx) => {
+                const cleanItem = {};
+                Object.keys(item).forEach(k => cleanItem[k] = item[k] === null || item[k] === undefined ? '' : String(item[k]));
+                cleanItem['Row_Number'] = cleanItem['id'] || cleanItem['RowInSheet'] || String(idx);
+                return cleanItem;
+            }).sort((a, b) => {
+                // Sort by id descending (newest first)
+                const idA = parseInt(a['id'] || a['RowInSheet'] || '0', 10);
+                const idB = parseInt(b['id'] || b['RowInSheet'] || '0', 10);
+                if (idA !== idB) return idB - idA;
+                // Fallback: sort by createdAt descending
+                const dateA = new Date(a['createdAt'] || 0).getTime();
+                const dateB = new Date(b['createdAt'] || 0).getTime();
+                return dateB - dateA;
+            }); 
+          } catch (e) {
+            console.error(e);
+            return [];
+          }
+        };
+
+        try {
+          const [mohParsed, formParsed] = await Promise.all([
+            fetchJSON(WEBHOOK_GET_URLS.moh),
+            fetchJSON(WEBHOOK_GET_URLS.form)
+          ]);
+          setMohData(mohParsed);
+          setFormData(formParsed);
+        } catch (err) {
+          setToast({ message: `โหลดข้อมูลไม่สำเร็จ กรุณาลองใหม่`, type: 'error' });
+        } finally {
+          setIsLoading(false);
+        }
+      };
+
+      useEffect(() => { fetchAllData(); }, []);
+
+      const handleRefresh = () => {
+        setSearchQuery('');
+        fetchAllData(); 
+      };
+
+      useEffect(() => {
+        const handleKey = (e) => {
+          const isModalOpen = isAdding || editingOrder;
+          if (e.key === '/' && !isModalOpen && document.activeElement?.tagName !== 'INPUT' && document.activeElement?.tagName !== 'TEXTAREA') { 
+            e.preventDefault(); searchInputRef.current?.focus(); 
+          }
+          if (e.key === 'Escape') { 
+            if (selectedOrder) setSelectedOrder(null); 
+            if (isSidebarOpen) setIsSidebarOpen(false); 
+            if (isAdding) setIsAdding(false); 
+            if (editingOrder) setEditingOrder(null);
+          }
+          if (e.key === 'n' && !isModalOpen && !selectedOrder) { 
+            e.preventDefault(); setIsAdding(true); 
+          }
+        };
+        window.addEventListener('keydown', handleKey);
+        return () => window.removeEventListener('keydown', handleKey);
+      }, [selectedOrder, isSidebarOpen, isAdding, editingOrder]);
+
+      const currentData = activeTab === 'moh' ? mohData : formData;
+      
+      const currentGroups = useMemo(() => getStaticFieldGroups(activeTab), [activeTab]);
+      
+      const getTimestamp = (item) => item['Timestamp'] || item['TimeStamp'] || item['ประทับเวลา'] || item['createdAt'] || item['Booking_Date'] || item['วันที่สั่งจอง'] || '';
+      
+      const getOrderId = (item) => {
+        if (activeTab === 'moh') return item['Booking_Order_Number'] || item['เลขที่ใบสั่งจอง'] || '-';
+        return item['Suit_Number'] || item['เลขที่ชุด'] || '-';
+      };
+      
+      const themeClasses = activeTab === 'moh' 
+        ? { gradient: 'from-blue-600 to-indigo-600', text: 'text-blue-700', soft: 'bg-blue-50', border: 'border-blue-200', btn: 'bg-blue-600 hover:bg-blue-700 shadow-blue-200', badge: 'primary', progress: 'from-blue-600 to-indigo-600', progressActive: 'bg-blue-500', progressDone: 'bg-blue-400' }
+        : { gradient: 'from-emerald-600 to-teal-600', text: 'text-emerald-700', soft: 'bg-emerald-50', border: 'border-emerald-200', btn: 'bg-emerald-600 hover:bg-emerald-700 shadow-emerald-200', badge: 'success', progress: 'from-emerald-600 to-teal-600', progressActive: 'bg-emerald-500', progressDone: 'bg-emerald-400' };
+
+      const filteredData = useMemo(() => {
+        return currentData.filter(item => {
+          let q = searchQuery.toLowerCase().trim();
+          
+          const titleField = item['คำนำหน้า'] || item['Title'] || '';
+          const nameField = item['ชื่อ'] || item['First_Name'] || '';
+          const lastNameField = item['นามสกุล'] || item['Last_Name'] || '';
+          const studentIdField = item['รหัสนักศึกษา'] || item['Student_ID'] || '';
+          const orderId = getOrderId(item);
+          
+          let targetText = `${titleField} ${nameField} ${lastNameField} ${studentIdField} ${orderId}`.toLowerCase();
+          targetText = targetText.replace(/น\.ส\./g, 'นางสาว');
+          q = q.replace(/น\.ส\./g, 'นางสาว');
+          
+          const matchSearch = !q || targetText.includes(q);
+          const matchNew = !filters.showNewOnly || isNew(getTimestamp(item));
+          
+          return matchSearch && matchNew;
+        });
+      }, [currentData, searchQuery, filters, activeTab]);
+
+      const handleSelect = useCallback((order) => { 
+        setSelectedOrder(order); 
+        if (window.innerWidth < 768) setIsSidebarOpen(false); 
+      }, []);
+      
+      const handleSave = useCallback(async (data) => { 
+        try { 
+          const targetWebhook = WEBHOOK_POST_URLS[data.tab] || WEBHOOK_POST_URLS['form'];
+
+          if (data.action === 'upload') {
+            const formDataObj = new FormData();
+            data.files.forEach((file, index) => {
+               if (index === 0) formDataObj.append('file', file);
+               else formDataObj.append(`file_${index}`, file); 
+            });
+            formDataObj.append('tab', data.tab);
+            formDataObj.append('action', 'upload');
+            if (data.Row_Number) formDataObj.append('Row_Number', data.Row_Number);
+
+            await fetch(targetWebhook, { method: 'POST', body: formDataObj });
+          } else {
+            const payload = { action: data.action, tab: data.tab, Row_Number: data.Row_Number, data: data.dataWithTimestamp };
+            await fetch(targetWebhook, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+          }
+
+          setToast({ message: '✓ บันทึกสำเร็จ! (กดรีเฟรชเพื่อดูข้อมูลใหม่)', type: 'success' }); 
+          setIsAdding(false); 
+          setEditingOrder(null);
+        } catch (e) { 
+          console.error("Webhook Error:", e);
+          setToast({ message: 'เชื่อมต่อ Webhook ไม่สำเร็จ (ดูใน Console)', type: 'error' }); 
+        } 
+      }, []);
+
+      if (isLoading) {
+        return (
+          <div className="h-screen flex flex-col items-center justify-center bg-slate-50 p-4">
+            <div className="w-14 h-14 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+            <p className="text-slate-600 font-medium">กำลังโหลดข้อมูล...</p>
+            <div className="mt-6 space-y-3 w-full max-w-md">
+              {[1,2,3,4].map(i => <Skeleton key={i} className="h-16 w-full"/>)}
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="flex flex-col h-screen bg-slate-50">
+          <header className={`bg-gradient-to-r ${themeClasses.gradient} text-white shadow-lg sticky top-0 z-40 transition-colors duration-300`}>
+            <div className="px-4 py-3 flex items-center justify-between max-w-7xl mx-auto">
+              <div className="flex items-center gap-3">
+                <button onClick={() => setIsSidebarOpen(true)} className="md:hidden p-2 -ml-2 hover:bg-white/10 rounded-xl">
+                  <Icon name="list" className="w-6 h-6"/>
+                </button>
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 bg-white/20 rounded-xl flex items-center justify-center">
+                    <Icon name="shirt" className="w-5 h-5 text-white"/>
+                  </div>
+                  <div>
+                    <h1 className="font-bold text-base leading-tight">ร้านอมเรศ</h1>
+                    <p className="text-xs text-white/80 -mt-0.5">ท่าพระจันทร์</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="hidden sm:flex bg-white/15 rounded-xl p-1">
+                {[{id:'moh',label:'🧑 รายคน',count:mohData.length},{id:'form',label:'📋 ฟอร์มกลุ่ม',count:formData.length}].map(tab => (
+                  <button key={tab.id} onClick={() => {setActiveTab(tab.id);setSelectedOrder(null);setSearchQuery('');}} className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-all flex items-center gap-1.5 ${activeTab===tab.id?'bg-white text-slate-800 shadow':'text-white/85 hover:text-white hover:bg-white/10'}`}>
+                    {tab.label} <Badge variant={activeTab===tab.id?'default':'new'} className="!py-0 !px-1.5">{tab.count}</Badge>
+                  </button>
+                ))}
+              </div>
+              
+              <div className="flex items-center gap-2">
+                <button onClick={handleRefresh} className="p-2 hover:bg-white/10 rounded-xl hidden sm:flex" title="รีเฟรชข้อมูลล่าสุด">
+                  <Icon name="refresh" className="w-5 h-5"/>
+                </button>
+                <button onClick={() => setIsAdding(true)} className="flex items-center gap-2 md:gap-2 bg-white text-slate-800 px-3 sm:px-4 py-2 rounded-xl font-semibold text-sm hover:bg-slate-50 transition-all shadow-sm">
+                  <Icon name="plus" className="w-4 h-4"/> <span className="hidden sm:inline">เพิ่มรายการ</span>
+                </button>
+              </div>
+            </div>
+            
+            <div className="sm:hidden px-4 pb-3 max-w-7xl mx-auto animate-fade-in">
+              <div className="flex bg-white/15 rounded-xl p-1">
+                {[{id:'moh',label:'🧑 รายคน',count:mohData.length},{id:'form',label:'📋 ฟอร์มกลุ่ม',count:formData.length}].map(tab => (
+                  <button key={tab.id} onClick={() => {setActiveTab(tab.id);setSelectedOrder(null);setSearchQuery('');}} className={`flex-1 py-1.5 rounded-lg text-sm font-semibold transition-all flex justify-center items-center gap-1.5 ${activeTab===tab.id?'bg-white text-slate-800 shadow':'text-white/85 hover:text-white hover:bg-white/10'}`}>
+                    {tab.label} <Badge variant={activeTab===tab.id?'default':'new'} className="!py-0 !px-1.5">{tab.count}</Badge>
+                  </button>
+                ))}
+              </div>
+            </div>
+          </header>
+
+          <div className="flex flex-1 overflow-hidden">
+            <aside className={`${isSidebarOpen?'translate-x-0':'-translate-x-full'} md:translate-x-0 fixed md:static inset-y-0 left-0 z-30 w-80 bg-white border-r border-slate-200 flex flex-col transition-transform`}>
+              <div className="p-4 border-b border-slate-100">
+                <div className="flex items-center justify-between mb-3">
+                  <h2 className={`font-bold ${themeClasses.text}`}>
+                    {activeTab==='moh'?'📋 ใบจองรายคน':'📦 ใบจองจากฟอร์ม'}
+                  </h2>
+                  <div className="flex items-center gap-2">
+                    <Badge variant={themeClasses.badge}>{filteredData.length}</Badge>
+                    <button onClick={() => setIsSidebarOpen(false)} className="md:hidden p-1.5 hover:bg-slate-100 rounded-lg"><Icon name="x" className="w-5 h-5"/></button>
+                  </div>
+                </div>
+                
+                <div className="relative">
+                  <Icon name="search" className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400"/>
+                  <input ref={searchInputRef} type="text" placeholder="ค้นหาชื่อ, รหัส, เลขที่... (กด /)" value={searchQuery} onChange={(e)=>setSearchQuery(e.target.value)} className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"/>
+                </div>
+                
+                <div className="flex gap-2 mt-3">
+                  <button onClick={()=>setFilters(f=>({...f,showNewOnly:!f.showNewOnly}))} className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium border transition-all flex items-center justify-center gap-1 ${filters.showNewOnly ? (activeTab==='moh'?'bg-blue-50 border-blue-200 text-blue-700':'bg-emerald-50 border-emerald-200 text-emerald-700') :'border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                    {filters.showNewOnly && <span className="w-1.5 h-1.5 bg-red-500 rounded-full badge-new"></span>} ใหม่ 48ชม.
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex-1 overflow-y-auto no-scrollbar p-2 space-y-1.5">
+                {filteredData.map((order, idx) => {
+                  const nName = order['ชื่อ'] || order['First_Name'] || '';
+                  const nLast = order['นามสกุล'] || order['Last_Name'] || '';
+                  const isSelected = selectedOrder && (selectedOrder['Row_Number'] === order['Row_Number']);
+                  
+                  return (
+                    <button key={`${order['Row_Number']}-${idx}`} onClick={()=>handleSelect(order)} className={`w-full text-left p-3.5 rounded-2xl transition-all relative ${isSelected ? `bg-white shadow-md ring-1 ring-slate-200 border-l-4 ${activeTab==='moh'?'border-blue-500':'border-emerald-500'}` :'hover:bg-slate-50 border-l-4 border-transparent'}`}>
+                      {isNew(getTimestamp(order)) && <span className="absolute -top-0.5 -right-0.5"><Badge variant="new" className="!text-[9px] !py-0 !px-1.5">NEW</Badge></span>}
+                      <div className="flex items-start justify-between gap-2 mb-1">
+                        <p className={`font-semibold text-sm truncate ${isSelected?themeClasses.text:'text-slate-700'}`}>
+                          {(order['รหัสนักศึกษา'] || order['Student_ID']) && <span className="font-mono text-xs text-slate-400 mr-1.5">{order['รหัสนักศึกษา'] || order['Student_ID']}</span>}
+                          {(order['คำนำหน้า'] || order['Title']) && <span className="text-slate-600">{order['คำนำหน้า'] || order['Title']} </span>} {nName} {nLast && <span className="text-slate-500"> {nLast}</span>}
+                        </p>
+                        <Badge variant={isSelected?themeClasses.badge:'default'} className="flex-shrink-0 text-[10px]">{getOrderId(order)}</Badge>
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-400 mt-1">
+                        <span className="truncate pr-2">{getFaculty(order)}</span>
+                        <span className="flex-shrink-0 font-medium whitespace-nowrap">{formatDateTime(getTimestamp(order))}</span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </aside>
+
+            {isSidebarOpen && <div className="fixed inset-0 bg-black/30 z-20 md:hidden" onClick={()=>setIsSidebarOpen(false)}/>}
+
+            <main className="flex-1 overflow-y-auto bg-gradient-to-br from-slate-50 to-slate-100/50">
+              {selectedOrder ? (
+                <div className="max-w-5xl mx-auto p-4 md:p-6 lg:p-8 animate-enter">
+                  <div className="flex justify-between items-center mb-4">
+                    <button onClick={()=>setSelectedOrder(null)} className="md:hidden flex items-center gap-2 text-slate-600 hover:text-slate-800 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-sm text-sm">
+                      <Icon name="chevron-left" className="w-4 h-4"/> กลับ
+                    </button>
+                    {activeTab === 'moh' && <button onClick={() => setEditingOrder(selectedOrder)} className="flex items-center gap-2 bg-white px-4 py-2 rounded-xl text-sm font-semibold text-slate-700 border border-slate-200 hover:bg-slate-50 shadow-sm transition-all ml-auto">
+                      <Icon name="edit" className="w-4 h-4"/> แก้ไขข้อมูล
+                    </button>}
+                  </div>
+                  
+                  <div className="bg-white rounded-3xl shadow-sm border border-slate-100 p-5 md:p-6 mb-5 relative overflow-hidden">
+                    <div className={`absolute top-0 right-0 w-48 h-48 bg-gradient-to-br ${themeClasses.gradient} rounded-full blur-3xl opacity-10 -translate-y-1/2 translate-x-1/2`}></div>
+                    <div className="relative z-10 flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
+                          <Badge variant={themeClasses.badge}>{selectedOrder['สถาบัน'] || selectedOrder['Institution'] || selectedOrder['วิทยาเขต'] || selectedOrder['Campus'] || '-'}</Badge>
+                          <span className="text-sm text-slate-500">{getFaculty(selectedOrder)}</span>
+                        </div>
+                        <h2 className="text-2xl md:text-3xl font-bold text-slate-900 leading-tight">
+                          {(selectedOrder['คำนำหน้า'] || selectedOrder['Title']) && <span className="text-slate-700">{selectedOrder['คำนำหน้า'] || selectedOrder['Title']} </span>}
+                          <span className="text-slate-900">{selectedOrder['ชื่อ'] || selectedOrder['First_Name']}</span>
+                          {(selectedOrder['นามสกุล'] || selectedOrder['Last_Name']) && <span className="text-slate-500 font-normal"> {selectedOrder['นามสกุล'] || selectedOrder['Last_Name']}</span>}
+                        </h2>
+                        {(selectedOrder['รหัสนักศึกษา'] || selectedOrder['Student_ID']) && <p className={`font-mono text-lg mt-1 ${themeClasses.text}`}>{selectedOrder['รหัสนักศึกษา'] || selectedOrder['Student_ID']}</p>}
+                      </div>
+                      <div className="flex-shrink-0 bg-slate-50 rounded-2xl p-4 border border-slate-100 min-w-[160px] text-center md:text-right">
+                        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">{activeTab==='moh'?'เลขที่ใบจอง':'เลขที่ชุด'}</p>
+                        <p className={`text-2xl font-black ${themeClasses.text} tracking-tight`}>{getOrderId(selectedOrder)}</p>
+                        <p className="text-xs text-slate-400 mt-2 flex items-center md:justify-end gap-1"><Icon name="clock" className="w-3.5 h-3.5"/>{formatDateTime(getTimestamp(selectedOrder))}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    {currentGroups.map((group) => {
+                      const visibleFields = group.fields.filter(f => selectedOrder[f] && !isEmpty(selectedOrder[f]));
+                      if (visibleFields.length === 0) return null;
+                      
+                      return (
+                        <div key={group.id} className={`bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden ${group.system?'opacity-90':''}`}>
+                          <div className="w-full px-5 py-4 flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className={`w-8 h-8 rounded-xl ${themeClasses.soft} ${themeClasses.text} flex items-center justify-center`}><Icon name={group.icon} className="w-4 h-4"/></div>
+                              <h3 className="font-semibold text-slate-800">{group.title}</h3>
+                            </div>
+                          </div>
+                          <div className="px-5 pb-5 pt-0">
+                            <div className={`grid gap-3 ${group.fields.length>6?'grid-cols-2 lg:grid-cols-3':'grid-cols-2'}`}>
+                              {visibleFields.map((field, idx) => { 
+                                const value = selectedOrder[field]; 
+                                let displayValue = value;
+                                if (['TimeStamp', 'ประทับเวลา', 'Timestamp', 'createdAt', 'Booking_Date', 'วันที่สั่งจอง', 'RowInSheet'].includes(field)) displayValue = formatDateTime(value) || value;
+                                
+                                return (
+                                  <div key={idx}>
+                                    <label className="block text-[11px] font-medium text-slate-400 mb-1 uppercase tracking-wide">{cleanLabel(field)}</label>
+                                    <div className={`px-3 py-2.5 rounded-xl text-sm font-medium break-words ${isEmpty(value)?'bg-slate-50 text-slate-300 border border-slate-100':'bg-white text-slate-800 border border-slate-200'}`}>
+                                      {['Row_Number', 'RowInSheet', 'id'].includes(field) && !isEmpty(value) ? <Badge variant="warning">ID/Row: {value}</Badge> : displayValue}
+                                    </div>
+                                  </div>
+                                ); 
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center p-6 text-center animate-enter">
+                  <div className={`w-20 h-20 rounded-3xl ${themeClasses.soft} ${themeClasses.text} flex items-center justify-center mb-5 shadow-sm`}><Icon name={activeTab==='moh'?'user':'list'} className="w-10 h-10"/></div>
+                  <h3 className="text-xl font-bold text-slate-800 mb-2">เลือกรายการเพื่อดูรายละเอียด</h3>
+                  <p className="text-slate-500 text-sm max-w-xs mb-6">คลิกเลือกรายการจากเมนูด้านซ้าย หรือใช้ช่องค้นหาเพื่อหาข้อมูลที่ต้องการ</p>
+                </div>
+              )}
+            </main>
+          </div>
+
+          <button onClick={()=>setIsAdding(true)} className={`md:hidden fixed bottom-5 right-5 w-14 h-14 ${activeTab==='moh'?'bg-blue-600':'bg-emerald-600'} text-white rounded-full shadow-lg flex items-center justify-center z-30`}><Icon name="plus" className="w-7 h-7"/></button>
+
+          {(isAdding || editingOrder) && (
+            <OrderModal 
+              isOpen={isAdding || !!editingOrder} 
+              initialData={editingOrder} 
+              onClose={() => { setIsAdding(false); setEditingOrder(null); }} 
+              onSave={handleSave} 
+              groups={currentGroups} 
+              activeTab={activeTab}
+              themeClasses={themeClasses}
+            />
+          )}
+
+          {toast && <Toast message={toast.message} type={toast.type} onClose={()=>setToast(null)}/>}
+        </div>
+      );
+    };
+
+    const OrderModal = ({ isOpen, onClose, onSave, groups, activeTab, themeClasses, initialData }) => {
+      const [mode, setMode] = useState('choose');
+      const [step, setStep] = useState(1);
+      const [formData, setFormData] = useState({});
+      const [submitting, setSubmitting] = useState(false);
+      const [selectedFiles, setSelectedFiles] = useState([]);
+      const [dragOver, setDragOver] = useState(false);
+      const fileInputRef = useRef(null);
+      const isEditing = !!initialData; 
+      
+      if (!isOpen) return null;
+
+      useEffect(() => {
+        if (isOpen) {
+          if (isEditing) {
+            setMode('manual');
+            setFormData(initialData);
+            setStep(1);
+          } else {
+            setMode('choose');
+            setFormData({});
+            setStep(1);
+            setSelectedFiles([]);
+          }
+        }
+      }, [isOpen, initialData]);
+
+      const handleFileSelect = (newFiles) => {
+        if (!newFiles || newFiles.length === 0) return;
+        const filesArray = Array.from(newFiles);
+        setSelectedFiles(prev => [...prev, ...filesArray]);
+        if (fileInputRef.current) fileInputRef.current.value = ''; 
+      };
+
+      const handleSaveUpload = async () => {
+        if (selectedFiles.length === 0) return;
+        setSubmitting(true);
+        try {
+          await onSave({ action: 'upload', files: selectedFiles, tab: activeTab, Row_Number: initialData?.Row_Number });
+        } catch (e) { console.error(e); } finally { setSubmitting(false); }
+      };
+
+      const handleSaveManual = async () => {
+        setSubmitting(true);
+        try {
+          const dataToSave = { ...formData };
+          if (!isEditing) {
+              dataToSave['ประทับเวลา'] = getCurrentTimestamp();
+              dataToSave['Timestamp'] = getCurrentTimestamp();
+              dataToSave['TimeStamp'] = getCurrentTimestamp();
+              dataToSave['Booking_Date'] = getCurrentTimestamp();
+              dataToSave['วันที่สั่งจอง'] = getCurrentTimestamp();
+              dataToSave['Webapp'] = 'Yes';
+          }
+          
+          groups.forEach(g => {
+            g.fields.forEach(f => {
+              if (dataToSave[f] === undefined) {
+                dataToSave[f] = '';
+              }
+            });
+          });
+          
+          await onSave({ action: isEditing ? 'edit' : 'add', dataWithTimestamp: dataToSave, tab: activeTab, Row_Number: initialData?.Row_Number });
+        } catch (e) { console.error(e); } finally { setSubmitting(false); }
+      };
+
+      const currentGroup = mode === 'manual' ? groups[step - 1] : null;
+      const progress = mode === 'manual' ? (step / Math.max(groups.length, 1)) * 100 : (mode === 'upload' ? 100 : 0);
+
+      const getSelectedCampus = () => {
+        return formData['Campus'] || formData['วิทยาเขต'] || '';
+      };
+
+      const isMaleOrdering = () => {
+        const fieldName = currentGroup?.fields.find(f => cleanLabel(f).includes('สำหรับบัณฑิตชาย เท่านั้น'));
+        if (fieldName && formData[fieldName] === 'สั่งจอง') return true;
+        return false;
+      };
+
+      const getInnerSuitSelection = () => {
+        for (const key of Object.keys(formData)) {
+          if (cleanLabel(key).includes('สั่งจองชุดด้านใน')) return formData[key];
+        }
+        return null;
+      };
+
+      return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/50 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-2xl max-h-[92vh] sm:max-h-[90vh] flex flex-col shadow-2xl animate-slide-up">
+            
+            <div className="flex items-center justify-between p-5 border-b border-slate-100 shrink-0">
+              <div>
+                <h3 className="font-bold text-lg text-slate-800">
+                  {mode === 'choose' && 'เพิ่มรายการใหม่'}
+                  {mode === 'upload' && '📎 อัปโหลดไฟล์'}
+                  {mode === 'manual' && (isEditing ? '✏️ แก้ไขข้อมูล' : '✏️ กรอกข้อมูล')}
+                </h3>
+              </div>
+              <button onClick={onClose} disabled={submitting} className="p-2 hover:bg-slate-100 rounded-xl transition-colors"><Icon name="x" className="w-5 h-5"/></button>
+            </div>
+
+            {mode === 'manual' && <div className="h-1 bg-slate-100 shrink-0"><div className={`h-full bg-gradient-to-r ${themeClasses.progress} transition-all duration-500`} style={{width:`${progress}%`}}/></div>}
+
+            <div className="flex-1 overflow-y-auto">
+              {mode === 'choose' && !isEditing && (
+                <div className="p-6 md:p-8">
+                  <div className="text-center mb-8"><h4 className="text-xl font-bold text-slate-800">คุณต้องการเพิ่มข้อมูลด้วยวิธีไหน?</h4></div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg mx-auto">
+                    <button onClick={() => setMode('upload')} className="hover-lift group p-6 rounded-2xl border-2 border-slate-200 hover:border-blue-400 bg-white text-left transition-all">
+                      <div className="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center mb-4 group-hover:bg-blue-600 group-hover:text-white transition-all group-hover:scale-110"><Icon name="upload" className="w-7 h-7"/></div>
+                      <h5 className="font-bold text-slate-800 text-lg mb-1 group-hover:text-blue-600">อัปโหลดไฟล์</h5>
+                      <p className="text-sm text-slate-500 leading-relaxed">แนบไฟล์ PDF, รูปภาพ หรือเอกสาร (แนบหลายไฟล์ได้)</p>
+                    </button>
+                    <button onClick={() => { setMode('manual'); const ts = getCurrentTimestamp(); setFormData(prev => ({ ...prev, 'ประทับเวลา': ts, 'Timestamp': ts, 'TimeStamp': ts, 'Booking_Date': ts, 'วันที่สั่งจอง': ts })); }} className="hover-lift group p-6 rounded-2xl border-2 border-slate-200 hover:border-emerald-400 bg-white text-left transition-all">
+                      <div className="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4 group-hover:bg-emerald-600 group-hover:text-white transition-all group-hover:scale-110"><Icon name="edit" className="w-7 h-7"/></div>
+                      <h5 className="font-bold text-slate-800 text-lg mb-1 group-hover:text-emerald-600">กรอกข้อมูลเอง</h5>
+                      <p className="text-sm text-slate-500 leading-relaxed">พิมพ์กรอกรายละเอียดลงในฟอร์มทีละขั้นตอน</p>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {mode === 'upload' && (
+                <div className="p-6 md:p-8">
+                  <div className="flex flex-col items-center">
+                    <div className={`w-full max-w-md border-2 border-dashed rounded-3xl p-6 sm:p-10 flex flex-col items-center text-center cursor-pointer transition-all ${dragOver ? 'border-blue-400 bg-blue-50 scale-[1.02]' : selectedFiles.length > 0 ? 'border-emerald-300 bg-emerald-50/30' : 'border-slate-200 hover:bg-blue-50/50'}`} onDragOver={(e) => { e.preventDefault(); setDragOver(true); }} onDragLeave={() => setDragOver(false)} onDrop={(e) => { e.preventDefault(); setDragOver(false); handleFileSelect(e.dataTransfer.files); }} onClick={() => selectedFiles.length === 0 && fileInputRef.current?.click()}>
+                      <input ref={fileInputRef} type="file" className="hidden" multiple accept=".jpg,.jpeg,.png,.pdf,.doc,.docx" onChange={(e) => handleFileSelect(e.target.files)}/>
+                      
+                      {selectedFiles.length > 0 ? (
+                        <div className="w-full">
+                          <div className="w-16 h-16 mx-auto rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center mb-4"><Icon name="check-circle" className="w-8 h-8"/></div>
+                          <div className="font-bold text-slate-800 text-lg mb-1 text-center">เลือกแล้ว {selectedFiles.length} ไฟล์</div>
+                          
+                          <div className="text-sm text-slate-500 mb-4 mt-3 space-y-1.5 max-h-40 overflow-y-auto text-left bg-white p-3 rounded-xl border border-slate-200 shadow-sm no-scrollbar">
+                            {selectedFiles.map((f, i) => (
+                              <div key={i} className="flex justify-between items-center bg-slate-50 border border-slate-100 p-2.5 rounded-lg">
+                                <span className="truncate pr-2 text-slate-700 font-medium">{f.name}</span>
+                                <button onClick={(e) => { e.stopPropagation(); setSelectedFiles(prev => prev.filter((_, idx) => idx !== i)); }} className="text-red-400 hover:bg-red-100 hover:text-red-600 p-1.5 rounded-md transition-colors shrink-0"><Icon name="x" className="w-4 h-4"/></button>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          <button onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }} className="text-sm text-blue-600 font-semibold hover:text-blue-800 hover:bg-blue-100 px-4 py-2 rounded-lg transition-colors inline-flex items-center gap-2">
+                            <Icon name="plus" className="w-4 h-4" /> เพิ่มไฟล์อีก
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="py-6">
+                          <div className={`w-16 h-16 mx-auto rounded-2xl flex items-center justify-center mb-4 transition-all ${dragOver ? 'bg-blue-200 text-blue-600 scale-110' : 'bg-slate-100 text-slate-400'}`}><Icon name="upload" className="w-8 h-8"/></div>
+                          <div className="font-bold text-slate-700 text-lg mb-1">ลากไฟล์มาวางที่นี่</div>
+                          <div className="text-sm text-slate-500">หรือคลิกเพื่อเลือกไฟล์ (เลือกได้หลายไฟล์)</div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {mode === 'manual' && currentGroup && (
+                <div className="p-5 md:p-6">
+                  <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100">
+                    <button onClick={() => { if (step > 1) setStep(s => s - 1); else if(isEditing) onClose(); else setMode('choose'); }} className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-slate-600 font-medium transition-colors">
+                      <Icon name="chevron-left" className="w-4 h-4"/> {step > 1 ? 'ก่อนหน้า' : (isEditing ? 'ยกเลิก' : 'กลับ')}
+                    </button>
+                    <div className="text-right"><span className="text-xs font-bold px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600">{step} / {groups.length}</span></div>
+                  </div>
+
+                  <div className="flex items-center gap-3 mb-5">
+                    <div className={`w-10 h-10 rounded-xl ${themeClasses.soft} ${themeClasses.text} flex items-center justify-center`}><Icon name={currentGroup.icon} className="w-5 h-5"/></div>
+                    <div><h4 className="font-semibold text-slate-800">{currentGroup.title}</h4></div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {currentGroup.fields.map((field, idx) => {
+                      const cLabel = cleanLabel(field);
+                      
+                      const isLong = ['Address', 'Booking_Details'].includes(field) || cLabel.length > 40;
+                      
+                      const isReadOnly = ['Timestamp', 'RowInSheet', 'id', 'Row_Number', 'ประทับเวลา', 'Booking_Date', 'วันที่สั่งจอง', 'Total_Inner_Suits', 'รวมชุดด้านใน'].includes(field);
+                      
+                      const isCampusField = activeTab === 'form' && field === 'Campus';
+                      const isDegreeField = ['Degree_Level', 'Order_Degree_Gown'].includes(field);
+                      
+                      const isMaleOnlyOrderField = field === 'Male_Inner_Suit_Choice';
+                      const isInnerSuitOrderField = field === 'Order_Inner_Suit_Male';
+                      
+                      const isSubOptionRajpattern = field === 'RajPattern_Shirt_With_Insignia';
+                      const isSubOptionSubLieutenant = field === 'Acting_Sub_Lieutenant_Suit';
+                      const isSubOptionOfficer = field === 'Civil_Servant_Suit';
+                      
+                      const isRajpatternSizeField = field.startsWith('RajPattern_') && !['RajPattern_Suit_Service_Type', 'RajPattern_Price', 'RajPattern_Deposit', 'RajPattern_Balance', 'RajPattern_Shirt_With_Insignia'].includes(field);
+                      const isOtherSuitSizeField = field.startsWith('General_') || ['Crotch_Length_inch', 'Thigh_Circumference_inch', 'Pants_Length_inch'].includes(field);
+                      
+                      const isFacultyRelated = activeTab === 'form' && ['HatYai_Faculty_Color', 'Pattani_Faculty_Color', 'SuratThani_Faculty_Color', 'Trang_Faculty_Color', 'Phuket_Faculty_Color'].includes(field);
+                      const isOrderTypeField = field === 'Order_Type';
+                      
+                      const isYesNoField = ['Order_Garment_Bag', 'Order_RajPattern_Suit', 'Order_Navy_Blue_Suit', 'Order_White_Suit', 'Order_Insignia', 'Order_Student_Uniform'].includes(field);
+                      const isSuitServiceType = ['RajPattern_Suit_Service_Type', 'Gown_Service_Type'].includes(field);
+
+                      if (activeTab === 'form') {
+                          if (isInnerSuitOrderField && !isMaleOrdering()) return null;
+
+                          const innerSuitSelection = getInnerSuitSelection();
+                          if (isSubOptionRajpattern && innerSuitSelection !== 'สั่งจองเสื้อราชปะแตนพร้อมเครื่องหมาย') return null;
+                          if (isSubOptionSubLieutenant && innerSuitSelection !== 'สั่งจองชุดว่าที่ร้อยตรี') return null;
+                          if (isSubOptionOfficer && innerSuitSelection !== 'สั่งจองชุดข้าราชการ') return null;
+                          
+                          if (isRajpatternSizeField && innerSuitSelection !== 'สั่งจองเสื้อราชปะแตนพร้อมเครื่องหมาย') return null;
+                          if (isOtherSuitSizeField && (innerSuitSelection !== 'สั่งจองชุดว่าที่ร้อยตรี' && innerSuitSelection !== 'สั่งจองชุดข้าราชการ')) return null;
+                      }
+
+                      if (isFacultyRelated) {
+                          const selectedCampus = getSelectedCampus();
+                          
+                          if (['HatYai_Faculty_Color', 'Pattani_Faculty_Color', 'SuratThani_Faculty_Color', 'Trang_Faculty_Color', 'Phuket_Faculty_Color'].includes(field)) {
+                              if (!selectedCampus) return null;
+                              const campusMap = {
+                                  'HatYai_Faculty_Color': 'หาดใหญ่',
+                                  'Pattani_Faculty_Color': 'ปัตตานี',
+                                  'SuratThani_Faculty_Color': 'สุราษฎร์',
+                                  'Trang_Faculty_Color': 'ตรัง',
+                                  'Phuket_Faculty_Color': 'ภูเก็ต'
+                              };
+                              if (!selectedCampus.includes(campusMap[field])) return null;
+                          }
+                      }
+
+                      if (isReadOnly) {
+                        return (
+                          <div key={idx} className={isLong?'sm:col-span-2':''}>
+                            <label className="block text-sm font-medium text-slate-600 mb-1.5">{cLabel} <span className="text-xs text-slate-400 font-normal">(อ่านอย่างเดียว)</span></label>
+                            <input type="text" readOnly value={formData[field]||''} className="w-full px-4 py-3 bg-slate-100 text-slate-500 cursor-not-allowed border border-slate-200 rounded-xl text-sm" />
+                          </div>
+                        );
+                      }
+
+                      if (isCampusField) {
+                        return (
+                          <div key={idx} className={isLong?'sm:col-span-2':''}>
+                            <label className="block text-sm font-medium text-slate-600 mb-1.5">{cLabel}</label>
+                            <select 
+                              value={formData[field] || ''} 
+                              onChange={(e) => {
+                                const newCampus = e.target.value;
+                                setFormData({
+                                  ...formData, 
+                                  [field]: newCampus,
+                                  'Faculty': '',
+                                  'HatYai_Faculty_Color': '',
+                                  'Pattani_Faculty_Color': '',
+                                  'SuratThani_Faculty_Color': '',
+                                  'Trang_Faculty_Color': '',
+                                  'Phuket_Faculty_Color': ''
+                                });
+                              }}
+                              className="w-full px-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm appearance-none"
+                            >
+                              <option value="">-- เลือกวิทยาเขต --</option>
+                              {CAMPUS_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </div>
+                        );
+                      }
+
+                      if (isFacultyRelated) {
+                        const selectedCampus = getSelectedCampus();
+                        let options = [];
+                        
+                        if (selectedCampus) {
+                            if (selectedCampus.includes('หาดใหญ่')) options = FACULTY_BY_CAMPUS['หาดใหญ่'];
+                            else if (selectedCampus.includes('ปัตตานี')) options = FACULTY_BY_CAMPUS['ปัตตานี'];
+                            else if (selectedCampus.includes('สุราษฎร์')) options = FACULTY_BY_CAMPUS['สุราษฎร์'];
+                            else if (selectedCampus.includes('ตรัง')) options = FACULTY_BY_CAMPUS['ตรัง'];
+                            else if (selectedCampus.includes('ภูเก็ต')) options = FACULTY_BY_CAMPUS['ภูเก็ต'];
+                        }
+
+                        return (
+                          <div key={idx} className={isLong?'sm:col-span-2':''}>
+                            <label className="block text-sm font-medium text-slate-600 mb-1.5">{cLabel}</label>
+                            <select 
+                              value={formData[field] || ''} 
+                              onChange={(e) => setFormData({...formData, [field]: e.target.value})}
+                              disabled={!selectedCampus}
+                              className={`w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm appearance-none ${!selectedCampus ? 'bg-slate-50 text-slate-400 cursor-not-allowed' : 'bg-white'}`}
+                            >
+                              <option value="">{selectedCampus ? '-- เลือกคณะ/สี --' : 'กรุณาเลือกวิทยาเขตก่อน'}</option>
+                              {options.map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
+                          </div>
+                        );
+                      }
+
+                      if (isDegreeField) {
+                        return (
+                          <div key={idx} className="sm:col-span-2 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                            <label className="block text-sm font-bold text-slate-700 mb-3">ระดับปริญญา (ตรี / โท / เอก)</label>
+                            
+                            <div className="grid grid-cols-3 gap-3 mb-3">
+                              {['ตรี', 'โท', 'เอก'].map(level => (
+                                <label key={level} className={`flex items-center justify-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${formData[field] === level ? `border-${themeClasses.badge === 'primary' ? 'blue' : 'emerald'}-500 bg-white shadow-sm ring-1 ring-${themeClasses.badge === 'primary' ? 'blue' : 'emerald'}-500` : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
+                                  <input type="radio" name={field} value={level} checked={formData[field] === level} onChange={(e) => {
+                                      const newLevel = e.target.value;
+                                      setFormData({
+                                        ...formData, 
+                                        [field]: newLevel, 
+                                        'Bachelor_Degree_Details': '',
+                                        'Master_Degree_Details': '',
+                                        'Doctoral_Degree_Details': ''
+                                      });
+                                  }} className="hidden"/>
+                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${formData[field] === level ? `border-${themeClasses.badge === 'primary' ? 'blue' : 'emerald'}-500` : 'border-slate-300'}`}>
+                                    {formData[field] === level && <div className={`w-2 h-2 bg-${themeClasses.badge === 'primary' ? 'blue' : 'emerald'}-500 rounded-full animate-fade-in`}></div>}
+                                  </div>
+                                  <span className={`text-sm font-semibold ${formData[field] === level ? `text-${themeClasses.badge === 'primary' ? 'blue' : 'emerald'}-700` : 'text-slate-600'}`}>{level}</span>
+                                </label>
+                              ))}
+                            </div>
+
+
+
+                            {activeTab === 'form' && formData[field] && PACKAGE_OPTIONS[formData[field]] && (() => {
+                               const packageField = formData[field] === 'ตรี' ? 'Bachelor_Degree_Details' : formData[field] === 'โท' ? 'Master_Degree_Details' : 'Doctoral_Degree_Details';
+                               return (
+                                 <div className="mt-4 animate-fade-in border-t border-slate-200 pt-4">
+                                   <label className="block text-sm font-bold text-slate-700 mb-2">รูปแบบการสั่งจอง (ปริญญา{formData[field]})</label>
+                                   <select 
+                                     value={formData[packageField] || ''} 
+                                     onChange={(e) => setFormData({...formData, [packageField]: e.target.value})}
+                                     className="w-full px-4 py-3.5 bg-white border border-slate-300 shadow-sm rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm appearance-none font-medium text-slate-700"
+                                   >
+                                     <option value="" className="text-slate-400">-- กรุณาเลือกแพ็กเกจ --</option>
+                                     {PACKAGE_OPTIONS[formData[field]].map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                                   </select>
+                                 </div>
+                               );
+                            })()}
+                          </div>
+                        );
+                      }
+
+                      if (isMaleOnlyOrderField) {
+                        return (
+                          <div key={idx} className="sm:col-span-2">
+                            <label className="block text-sm font-medium text-slate-600 mb-1.5">สำหรับบัณฑิตชาย เท่านั้น (บัณฑิตหญิงเลือก "ไม่สั่งจอง")</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
+                              {['สั่งจอง', 'ไม่สั่งจอง'].map(opt => (
+                                <label key={opt} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${formData[field] === opt ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 bg-white'}`}>
+                                  <input type="radio" name={field} value={opt} checked={formData[field] === opt} onChange={(e)=>{
+                                    const val = e.target.value;
+                                    const updates = { [field]: val };
+                                    if(val === 'ไม่สั่งจอง') {
+                                        updates['Order_Inner_Suit_Male'] = '';
+                                        ['RajPattern_Shirt_With_Insignia', 'Acting_Sub_Lieutenant_Suit', 'Civil_Servant_Suit'].forEach(k => updates[k] = '');
+                                        ['RajPattern_Shoulder_Width_inch', 'RajPattern_Neck_Circumference_inch', 'RajPattern_Front_Shoulder_inch', 'RajPattern_Back_Shoulder_inch', 'RajPattern_Chest_inch', 'RajPattern_Sleeve_Length_inch', 'RajPattern_Shirt_Length_inch', 'RajPattern_Upper_Hip_inch', 'RajPattern_Waist_inch', 'RajPattern_Lower_Hip_inch', 'RajPattern_Belly_Circumference_inch', 'RajPattern_Crotch_inch', 'RajPattern_Thigh_inch', 'RajPattern_Pants_Skirt_Length_inch'].forEach(k => updates[k] = '');
+                                        ['General_Shoulder_Width_inch', 'General_Sleeve_Length_inch', 'General_Chest_inch', 'General_Neck_Circumference_inch', 'General_Shirt_Length_inch', 'General_Waist_inch', 'General_Hip_inch', 'Crotch_Length_inch', 'Thigh_Circumference_inch', 'Pants_Length_inch'].forEach(k => updates[k] = '');
+                                        updates['Total_Inner_Suits'] = '';
+                                        updates['รวมชุดด้านใน'] = '';
+                                    }
+                                    setFormData({...formData, ...updates});
+                                  }} className="hidden"/>
+                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData[field] === opt ? 'border-indigo-500' : 'border-slate-300'}`}>
+                                    {formData[field] === opt && <div className="w-2.5 h-2.5 bg-indigo-500 rounded-full animate-fade-in"></div>}
+                                  </div>
+                                  <span className={`text-sm font-semibold ${formData[field] === opt ? 'text-indigo-700' : 'text-slate-600'}`}>{opt}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (isInnerSuitOrderField) {
+                        const innerSuitOptions = ['สั่งจองเสื้อราชปะแตนพร้อมเครื่องหมาย', 'สั่งจองชุดว่าที่ร้อยตรี', 'สั่งจองชุดข้าราชการ'];
+                        return (
+                          <div key={idx} className="sm:col-span-2 animate-fade-in">
+                            <label className="block text-sm font-medium text-slate-600 mb-1.5">สั่งจองชุดด้านใน (บัณฑิตชาย)</label>
+                            <div className="grid grid-cols-1 gap-3 mt-1">
+                              {innerSuitOptions.map(opt => (
+                                <label key={opt} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${formData[field] === opt ? 'border-amber-500 bg-amber-50 shadow-sm' : 'border-slate-200 hover:border-amber-300 bg-white'}`}>
+                                  <input type="radio" name={field} value={opt} checked={formData[field] === opt} onChange={(e)=>{
+                                    const val = e.target.value;
+                                    const updates = { [field]: val };
+                                    
+                                    ['RajPattern_Shirt_With_Insignia', 'Acting_Sub_Lieutenant_Suit', 'Civil_Servant_Suit'].forEach(k => updates[k] = '');
+                                    if (val !== 'สั่งจองเสื้อราชปะแตนพร้อมเครื่องหมาย') {
+                                        ['RajPattern_Shoulder_Width_inch', 'RajPattern_Neck_Circumference_inch', 'RajPattern_Front_Shoulder_inch', 'RajPattern_Back_Shoulder_inch', 'RajPattern_Chest_inch', 'RajPattern_Sleeve_Length_inch', 'RajPattern_Shirt_Length_inch', 'RajPattern_Upper_Hip_inch', 'RajPattern_Waist_inch', 'RajPattern_Lower_Hip_inch', 'RajPattern_Belly_Circumference_inch', 'RajPattern_Crotch_inch', 'RajPattern_Thigh_inch', 'RajPattern_Pants_Skirt_Length_inch'].forEach(k => updates[k] = '');
+                                    }
+                                    if (val !== 'สั่งจองชุดว่าที่ร้อยตรี' && val !== 'สั่งจองชุดข้าราชการ') {
+                                        ['General_Shoulder_Width_inch', 'General_Sleeve_Length_inch', 'General_Chest_inch', 'General_Neck_Circumference_inch', 'General_Shirt_Length_inch', 'General_Waist_inch', 'General_Hip_inch', 'Crotch_Length_inch', 'Thigh_Circumference_inch', 'Pants_Length_inch'].forEach(k => updates[k] = '');
+                                    }
+                                    
+                                    updates['Total_Inner_Suits'] = '';
+                                    updates['รวมชุดด้านใน'] = '';
+
+                                    setFormData({...formData, ...updates});
+                                  }} className="hidden"/>
+                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData[field] === opt ? 'border-amber-500' : 'border-slate-300'}`}>
+                                    {formData[field] === opt && <div className="w-2.5 h-2.5 bg-amber-500 rounded-full animate-fade-in"></div>}
+                                  </div>
+                                  <span className={`text-sm font-semibold ${formData[field] === opt ? 'text-amber-700' : 'text-slate-600'}`}>{opt}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (isSubOptionRajpattern || isSubOptionSubLieutenant || isSubOptionOfficer) {
+                         let options = [];
+                         if (isSubOptionRajpattern) options = INNER_SUIT_SUB_OPTIONS['เสื้อราชปะแตนพร้อมเครื่องหมาย'];
+                         if (isSubOptionSubLieutenant) options = INNER_SUIT_SUB_OPTIONS['ชุดว่าที่ร้อยตรี'];
+                         if (isSubOptionOfficer) options = INNER_SUIT_SUB_OPTIONS['ชุดข้าราชการ'];
+
+                         return (
+                           <div key={idx} className="sm:col-span-2 animate-fade-in bg-amber-50/50 p-4 rounded-2xl border border-amber-100">
+                             <label className="block text-sm font-bold text-slate-700 mb-2">{cLabel}</label>
+                             <select 
+                               value={formData[field] || ''} 
+                               onChange={(e) => {
+                                   const val = e.target.value;
+                                   setFormData({
+                                       ...formData, 
+                                       [field]: val,
+                                       'Total_Inner_Suits': val,
+                                       'รวมชุดด้านใน': val
+                                   });
+                               }}
+                               className="w-full px-4 py-3.5 bg-white border border-slate-300 shadow-sm rounded-xl focus:ring-2 focus:ring-amber-500 focus:border-transparent outline-none transition-all text-sm appearance-none font-medium text-slate-700"
+                             >
+                               <option value="" className="text-slate-400">-- กรุณาเลือก --</option>
+                               {options.map(opt => <option key={opt} value={opt}>{opt}</option>)}
+                             </select>
+                           </div>
+                         );
+                      }
+
+                      if (isOrderTypeField) {
+                        return (
+                          <div key={idx} className={isLong?'sm:col-span-2':''}>
+                            <label className="block text-sm font-medium text-slate-600 mb-1.5">{cLabel}</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">
+                              <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${formData[field] === 'ครุย' ? 'border-emerald-500 bg-emerald-50 shadow-sm' : 'border-slate-200 hover:border-emerald-300 bg-white'}`}>
+                                <input type="radio" name={field} value="ครุย" checked={formData[field] === 'ครุย'} onChange={(e)=>setFormData({...formData, [field]: e.target.value})} className="hidden"/>
+                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData[field] === 'ครุย' ? 'border-emerald-500' : 'border-slate-300'}`}>
+                                  {formData[field] === 'ครุย' && <div className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-fade-in"></div>}
+                                </div>
+                                <span className={`text-sm font-semibold ${formData[field] === 'ครุย' ? 'text-emerald-700' : 'text-slate-600'}`}>ครุย (สั่งจอง)</span>
+                              </label>
+
+                              <label className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${formData[field] === 'ไม่สั่งจองครุย' ? 'border-red-500 bg-red-50 shadow-sm' : 'border-slate-200 hover:border-red-300 bg-white'}`}>
+                                <input type="radio" name={field} value="ไม่สั่งจองครุย" checked={formData[field] === 'ไม่สั่งจองครุย'} onChange={(e)=>setFormData({...formData, [field]: e.target.value})} className="hidden"/>
+                                <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${formData[field] === 'ไม่สั่งจองครุย' ? 'border-red-500' : 'border-slate-300'}`}>
+                                  {formData[field] === 'ไม่สั่งจองครุย' && <div className="w-2.5 h-2.5 bg-red-500 rounded-full animate-fade-in"></div>}
+                                </div>
+                                <span className={`text-sm font-semibold ${formData[field] === 'ไม่สั่งจองครุย' ? 'text-red-700' : 'text-slate-600'}`}>ไม่สั่งจองครุย</span>
+                              </label>
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (isYesNoField) {
+                        const currentValue = ['มี', 'รับ'].includes(formData[field]) ? 'รับ' : (['ไม่มี', 'ไม่รับ'].includes(formData[field]) ? 'ไม่รับ' : formData[field]);
+                        return (
+                          <div key={idx} className={isLong?'sm:col-span-2':''}>
+                            <label className="block text-sm font-medium text-slate-600 mb-1.5">{cLabel}</label>
+                            <div className="grid grid-cols-2 gap-3 mt-1">
+                              {['รับ', 'ไม่รับ'].map(opt => (
+                                <label key={opt} className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${currentValue === opt ? `border-${themeClasses.badge === 'primary' ? 'blue' : 'emerald'}-500 bg-${themeClasses.badge === 'primary' ? 'blue' : 'emerald'}-50 shadow-sm` : 'border-slate-200 hover:border-slate-300 bg-white'}`}>
+                                  <input type="radio" name={field} value={opt} checked={currentValue === opt} onChange={(e)=>setFormData({...formData, [field]: e.target.value})} className="hidden"/>
+                                  <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${currentValue === opt ? `border-${themeClasses.badge === 'primary' ? 'blue' : 'emerald'}-500` : 'border-slate-300'}`}>
+                                    {currentValue === opt && <div className={`w-2.5 h-2.5 bg-${themeClasses.badge === 'primary' ? 'blue' : 'emerald'}-500 rounded-full animate-fade-in`}></div>}
+                                  </div>
+                                  <span className={`text-sm font-semibold ${currentValue === opt ? `text-${themeClasses.badge === 'primary' ? 'blue' : 'emerald'}-700` : 'text-slate-600'}`}>{opt}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      if (isSuitServiceType) {
+                        return (
+                          <div key={idx} className="sm:col-span-2 animate-fade-in">
+                            <label className="block text-sm font-medium text-slate-600 mb-1.5">{cLabel}</label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-1">
+                              {['ตัดซื้อ', 'ตัดเช่า', 'เช่า'].map(opt => (
+                                <label key={opt} className={`flex items-center justify-center gap-2 p-3 rounded-xl border cursor-pointer transition-all ${formData[field] === opt ? 'border-indigo-500 bg-indigo-50 shadow-sm' : 'border-slate-200 hover:border-indigo-300 bg-white'}`}>
+                                  <input type="radio" name={field} value={opt} checked={formData[field] === opt} onChange={(e)=>setFormData({...formData, [field]: e.target.value})} className="hidden"/>
+                                  <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${formData[field] === opt ? 'border-indigo-500' : 'border-slate-300'}`}>
+                                    {formData[field] === opt && <div className="w-2 h-2 bg-indigo-500 rounded-full animate-fade-in"></div>}
+                                  </div>
+                                  <span className={`text-sm font-semibold ${formData[field] === opt ? 'text-indigo-700' : 'text-slate-600'}`}>{opt}</span>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div key={idx} className={isLong?'sm:col-span-2':''}>
+                          <label className="block text-sm font-medium text-slate-600 mb-1.5">{cLabel}</label>
+                          {isLong ? (
+                            <textarea value={formData[field]||''} onChange={(e)=>setFormData({...formData,[field]:e.target.value})} placeholder={`ระบุ ${cLabel.toLowerCase()}...`} rows={3} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm resize-y" />
+                          ) : (
+                            <input type="text" value={formData[field]||''} onChange={(e)=>setFormData({...formData,[field]:e.target.value})} placeholder={cLabel} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all text-sm" />
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 md:p-5 border-t border-slate-100 bg-slate-50/50 shrink-0">
+              {mode === 'upload' && (
+                <div className="flex justify-between items-center gap-3">
+                  <button onClick={() => !isEditing ? setMode('choose') : onClose()} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-white transition-colors shrink-0">ยกเลิก</button>
+                  <button onClick={handleSaveUpload} disabled={submitting || selectedFiles.length === 0} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center gap-2 transition-all ${submitting || selectedFiles.length === 0 ? 'bg-slate-200 text-slate-400 cursor-not-allowed' : `${themeClasses.btn} text-white shadow-md`}`}>
+                    {submitting ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> กำลังบันทึก...</> : <><Icon name="check" className="w-4 h-4"/> บันทึกไฟล์</>}
+                  </button>
+                </div>
+              )}
+
+              {mode === 'manual' && (
+                <div className="flex justify-between items-center gap-3">
+                  <button onClick={() => step > 1 ? setStep(s => s - 1) : (isEditing ? onClose() : setMode('choose'))} disabled={submitting} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium text-sm hover:bg-white transition-colors shrink-0 disabled:opacity-50">
+                    {step > 1 ? '← ก่อนหน้า' : 'ยกเลิก'}
+                  </button>
+                  
+                  {step < groups.length ? (
+                    <button onClick={() => setStep(s => s + 1)} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center gap-2 text-white transition-all shadow-md ${themeClasses.btn}`}>ถัดไป <Icon name="chevron-right" className="w-4 h-4"/></button>
+                  ) : (
+                    <button onClick={handleSaveManual} disabled={submitting} className={`w-full sm:w-auto px-6 py-2.5 rounded-xl font-medium text-sm flex items-center justify-center gap-2 text-white transition-all shadow-md ${themeClasses.btn} ${submitting ? 'opacity-70 cursor-wait' : ''}`}>
+                      {submitting ? <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></span> กำลังบันทึก...</> : <><Icon name="check" className="w-4 h-4"/> บันทึกข้อมูล</>}
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
